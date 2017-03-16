@@ -36,7 +36,11 @@ let s:keymaps = {
             \"\<C-h>": "backspace",
             \"\<C-b>": "left",
             \"\<C-f>": "right",
+            \"\<C-u>": "clear",
             \"\<Del>": "del",
+            \"\<C-j>": "down",
+            \"\<Tab>": "down",
+            \"\<C-k>": "up",
             \}
 
 function! nvim_fzf_shim#run(options)
