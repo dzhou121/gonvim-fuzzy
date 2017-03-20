@@ -68,6 +68,8 @@ func RegisterPlugin(nvim *nvim.Nvim) {
 			go shim.newChar(args[1:])
 		case "backspace":
 			go shim.backspace()
+		case "clear":
+			go shim.clear()
 		case "left":
 			go shim.left()
 		case "right":
@@ -317,6 +319,14 @@ func (s *Shim) newChar(args []interface{}) {
 	}
 	s.pattern = insertAtIndex(s.pattern, s.cursor, c)
 	s.cursor++
+	s.outputPattern()
+	s.outputCursor()
+	s.filter()
+}
+
+func (s *Shim) clear() {
+	s.pattern = ""
+	s.cursor = 0
 	s.outputPattern()
 	s.outputCursor()
 	s.filter()
