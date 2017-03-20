@@ -2,6 +2,7 @@ package fzf
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -77,6 +78,8 @@ func RegisterPlugin(nvim *nvim.Nvim) {
 			go shim.up()
 		case "cancel":
 			go shim.cancel()
+		case "confirm":
+			go shim.confirm()
 		default:
 			fmt.Println("unhandleld fzfshim event", event)
 		}
@@ -212,6 +215,10 @@ func (s *Shim) processSource() {
 	if !ok {
 		return
 	}
+	pwd, ok := s.options["pwd"]
+	if !ok {
+		return
+	}
 	sourceNew := s.sourceNew
 	cancelChan := s.cancelChan
 	switch src := source.(type) {
@@ -237,6 +244,8 @@ func (s *Shim) processSource() {
 			close(sourceNew)
 		}()
 	case string:
+		os.Chdir(pwd.(string))
+		fmt.Println("pwd is", pwd.(string))
 		cmd := exec.Command("bash", "-c", src)
 		stdout, _ := cmd.StdoutPipe()
 		output := ""
@@ -407,6 +416,25 @@ func (s *Shim) processSelected() {
 		s.outputResult()
 	}
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_select", s.selected-s.start)
+}
+
+func (s *Shim) confirm() {
+	s.outputHide()
+	arg := s.result[s.selected].output
+
+	sink, ok := s.options["sink"]
+	if ok {
+		s.nvim.Command(fmt.Sprintf("%s %s", sink.(string), arg))
+		return
+	}
+
+	function, ok := s.options["function"]
+	if ok {
+		options := map[string]string{}
+		options["function"] = function.(string)
+		options["arg"] = arg
+		s.nvim.Call("nvim_fzf_shim#exec", nil, options)
+	}
 }
 
 func (s *Shim) cancel() {

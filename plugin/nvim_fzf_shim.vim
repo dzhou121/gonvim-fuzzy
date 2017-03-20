@@ -66,9 +66,10 @@ function! nvim_fzf_shim#run(options)
     endwhile
 endfunction
 
-map <silent> <leader>fs :call nvim_fzf_shim#run({
-            \"source": "python ~/dotfiles/dir.py",
-            \"sink": "e",
-            \"function": "<sid>abc",
-            \"max": 10, 
-            \})<cr>
+function! nvim_fzf_shim#exec(options)
+    let s:arg = a:options.arg
+    if has_key(a:options, 'function')
+        let s:f = function(a:options.function)
+        echo s:f(s:arg)
+    endif
+endfunction
