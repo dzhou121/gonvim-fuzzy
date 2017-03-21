@@ -143,7 +143,7 @@ func (s *Shim) filter() {
 	s.result = []*Output{}
 	sourceNew := s.sourceNew
 
-	stop := make(chan bool)
+	stop := make(chan bool, 1)
 	go func() {
 		tick := time.Tick(100 * time.Millisecond)
 		for {
