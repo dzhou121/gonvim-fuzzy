@@ -93,7 +93,6 @@ func (s *Shim) run(args []interface{}) {
 	if !ok {
 		return
 	}
-	fmt.Println(s.options)
 	s.reset()
 	s.processMax()
 	s.processSource()
@@ -247,7 +246,6 @@ func (s *Shim) processSource() {
 		}()
 	case string:
 		os.Chdir(pwd.(string))
-		fmt.Println("pwd is", pwd.(string))
 		cmd := exec.Command("bash", "-c", src)
 		stdout, _ := cmd.StdoutPipe()
 		output := ""
@@ -333,7 +331,6 @@ func (s *Shim) clear() {
 }
 
 func (s *Shim) backspace() {
-	fmt.Println("backspace")
 	if s.cursor == 0 {
 		return
 	}
@@ -389,7 +386,7 @@ func (s *Shim) outputResult() {
 		}
 	}
 
-	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, s.selected-s.start, match)
+	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, s.selected-s.start, match, s.options["type"])
 }
 
 func (s *Shim) right() {
@@ -430,6 +427,9 @@ func (s *Shim) processSelected() {
 
 func (s *Shim) confirm() {
 	s.outputHide()
+	if s.selected >= len(s.result) {
+		return
+	}
 	arg := s.result[s.selected].output
 
 	sink, ok := s.options["sink"]
@@ -448,7 +448,6 @@ func (s *Shim) confirm() {
 }
 
 func (s *Shim) cancel() {
-	fmt.Println("stop")
 	s.outputHide()
 	s.cancelled = true
 	s.cancelChan <- true

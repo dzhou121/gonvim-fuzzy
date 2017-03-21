@@ -75,22 +75,13 @@ function! nvim_fzf_shim#exec(options)
 endfunction
 
 function! s:buffer_line_handler(lines)
-  if len(a:lines) < 2
-    return
-  endif
-  normal! m'
-  let cmd = get(get(g:, 'fzf_action', s:default_action), a:lines[0], '')
-  if !empty(cmd)
-    execute 'silent' cmd
-  endif
-
-  execute split(a:lines[1], '\t')[0]
+  execute split(a:lines, '\t')[0]
   normal! ^zz
 endfunction
 
 function! s:buffer_lines()
   return map(getline(1, "$"),
-    \ 'printf(s:yellow(" %4d ", "LineNr")."\t%s", v:key + 1, v:val)')
+    \ 'printf("%d\t%s", v:key + 1, v:val)')
 endfunction
 
 function! nvim_fzf_shim#buffer_lines(...)
@@ -98,8 +89,42 @@ function! nvim_fzf_shim#buffer_lines(...)
         \ [a:1, a:000[1:]] : ['', a:000]
   return nvim_fzf_shim#run({
               \ 'source': s:buffer_lines(),
-              \ 'function':   '<sid>buffer_line_handler',
+              \ 'function': '<sid>buffer_line_handler',
+              \ "pwd": fnameescape(getcwd()),
+              \ "type": "line",
+              \ "max": 20, 
+              \})
+endfunction
+
+" ------------------------------------------------------------------
+" Ag
+" ------------------------------------------------------------------
+function! s:ag_to_qf(line, with_column)
+  let parts = split(a:line, ':')
+  let text = join(parts[(a:with_column ? 3 : 2):], ':')
+  let dict = {'filename': &acd ? fnamemodify(parts[0], ':p') : parts[0], 'lnum': parts[1], 'text': text}
+  if a:with_column
+    let dict.col = parts[2]
+  endif
+  return dict
+endfunction
+
+function! s:ag_handler(line)
+  let s:parts = split(a:line, ':')
+  execute "e" s:parts[0]
+  execute s:parts[1]
+  normal! ^zz
+  execute 'normal!' s:parts[2].'|'
+endfunction
+
+" query, [[ag options], options]
+function! nvim_fzf_shim#ag(query)
+  let s:cmd = printf('%s "%s"', "ag --nogroup --column --nocolor", a:query)
+  return nvim_fzf_shim#run({
+              \ 'source': s:cmd,
+              \ 'function': '<sid>ag_handler',
               \ "pwd": fnameescape(getcwd()),
               \ "max": 20, 
+              \ "type": "ag", 
               \})
 endfunction
