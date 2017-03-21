@@ -73,3 +73,33 @@ function! nvim_fzf_shim#exec(options)
         echo s:f(s:arg)
     endif
 endfunction
+
+function! s:buffer_line_handler(lines)
+  if len(a:lines) < 2
+    return
+  endif
+  normal! m'
+  let cmd = get(get(g:, 'fzf_action', s:default_action), a:lines[0], '')
+  if !empty(cmd)
+    execute 'silent' cmd
+  endif
+
+  execute split(a:lines[1], '\t')[0]
+  normal! ^zz
+endfunction
+
+function! s:buffer_lines()
+  return map(getline(1, "$"),
+    \ 'printf(s:yellow(" %4d ", "LineNr")."\t%s", v:key + 1, v:val)')
+endfunction
+
+function! nvim_fzf_shim#buffer_lines(...)
+  let [query, args] = (a:0 && type(a:1) == type('')) ?
+        \ [a:1, a:000[1:]] : ['', a:000]
+  return nvim_fzf_shim#run({
+              \ 'source': s:buffer_lines(),
+              \ 'function':   '<sid>buffer_line_handler',
+              \ "pwd": fnameescape(getcwd()),
+              \ "max": 20, 
+              \})
+endfunction
