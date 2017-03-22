@@ -164,12 +164,26 @@ func (s *Shim) filter() {
 			return
 		}
 	}
-	for source := range sourceNew {
-		s.source = append(s.source, source)
-		s.scoreSource(source)
-		if s.scoreNew || s.cancelled {
-			return
+
+loop:
+	for {
+		select {
+		case source, ok := <-sourceNew:
+			if !ok {
+				break loop
+			}
+			s.source = append(s.source, source)
+			s.scoreSource(source)
+			if s.scoreNew || s.cancelled {
+				return
+			}
+		case <-time.After(1000 * time.Millisecond):
+			fmt.Println("timeout reading sourceNew")
+			break loop
 		}
+	}
+	if s.scoreNew || s.cancelled {
+		return
 	}
 	s.outputResult()
 }
@@ -365,20 +379,24 @@ func (s *Shim) outputCursor() {
 }
 
 func (s *Shim) outputResult() {
-	if s.start >= len(s.result) {
+	start := s.start
+	result := s.result
+	max := s.max
+	selected := s.selected
+	if start >= len(result) {
 		s.start = 0
 		s.selected = 0
 	}
-	end := s.start + s.max
-	if end > len(s.result) {
-		end = len(s.result)
+	end := start + max
+	if end > len(result) {
+		end = len(result)
 	}
 	output := []string{}
 	match := [][]int{}
-	for _, o := range s.result[s.start:end] {
+	for _, o := range result[start:end] {
 		output = append(output, o.output)
 	}
-	for _, o := range s.result[s.start:end] {
+	for _, o := range result[start:end] {
 		if o.match == nil {
 			match = append(match, []int{})
 		} else {
@@ -386,7 +404,7 @@ func (s *Shim) outputResult() {
 		}
 	}
 
-	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, s.selected-s.start, match, s.options["type"])
+	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, selected-start, match, s.options["type"])
 }
 
 func (s *Shim) right() {
@@ -426,13 +444,11 @@ func (s *Shim) processSelected() {
 }
 
 func (s *Shim) confirm() {
-	s.outputHide()
-	s.cancelled = true
-	s.cancelChan <- true
 	if s.selected >= len(s.result) {
 		return
 	}
 	arg := s.result[s.selected].output
+	s.cancel()
 
 	sink, ok := s.options["sink"]
 	if ok {
