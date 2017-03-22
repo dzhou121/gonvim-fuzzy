@@ -427,6 +427,8 @@ func (s *Shim) processSelected() {
 
 func (s *Shim) confirm() {
 	s.outputHide()
+	s.cancelled = true
+	s.cancelChan <- true
 	if s.selected >= len(s.result) {
 		return
 	}
