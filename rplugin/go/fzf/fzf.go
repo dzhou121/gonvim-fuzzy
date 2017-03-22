@@ -144,7 +144,7 @@ func (s *Shim) filter() {
 
 	stop := make(chan bool, 1)
 	go func() {
-		tick := time.Tick(100 * time.Millisecond)
+		tick := time.Tick(50 * time.Millisecond)
 		for {
 			select {
 			case <-tick:
