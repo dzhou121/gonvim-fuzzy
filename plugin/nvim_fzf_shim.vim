@@ -92,7 +92,7 @@ function! nvim_fzf_shim#buffer_lines(...)
   return nvim_fzf_shim#run({
               \ 'source': s:buffer_lines(),
               \ 'function': '<sid>buffer_line_handler',
-              \ "pwd": fnameescape(getcwd()),
+              \ "pwd": getcwd(),
               \ "type": "line",
               \ "max": 20, 
               \})
@@ -125,7 +125,7 @@ function! nvim_fzf_shim#ag(query)
   return nvim_fzf_shim#run({
               \ 'source': s:cmd,
               \ 'function': '<sid>ag_handler',
-              \ "pwd": fnameescape(getcwd()),
+              \ "pwd": getcwd(),
               \ "max": 20, 
               \ "type": "ag", 
               \})
