@@ -54,38 +54,42 @@ func RegisterPlugin(nvim *nvim.Nvim) {
 		scoreMutext: &sync.Mutex{},
 	}
 	nvim.RegisterHandler("FzfShim", func(args ...interface{}) {
-		if len(args) < 1 {
-			return
-		}
-		event, ok := args[0].(string)
-		if !ok {
-			return
-		}
-		switch event {
-		case "run":
-			go shim.run(args[1:])
-		case "char":
-			go shim.newChar(args[1:])
-		case "backspace":
-			go shim.backspace()
-		case "clear":
-			go shim.clear()
-		case "left":
-			go shim.left()
-		case "right":
-			go shim.right()
-		case "down":
-			go shim.down()
-		case "up":
-			go shim.up()
-		case "cancel":
-			go shim.cancel()
-		case "confirm":
-			go shim.confirm()
-		default:
-			fmt.Println("unhandleld fzfshim event", event)
-		}
+		shim.handle(args...)
 	})
+}
+
+func (s *Shim) handle(args ...interface{}) {
+	if len(args) < 1 {
+		return
+	}
+	event, ok := args[0].(string)
+	if !ok {
+		return
+	}
+	switch event {
+	case "run":
+		s.run(args[1:])
+	case "char":
+		s.newChar(args[1:])
+	case "backspace":
+		s.backspace()
+	case "clear":
+		s.clear()
+	case "left":
+		s.left()
+	case "right":
+		s.right()
+	case "down":
+		s.down()
+	case "up":
+		s.up()
+	case "cancel":
+		s.cancel()
+	case "confirm":
+		s.confirm()
+	default:
+		fmt.Println("unhandleld fzfshim event", event)
+	}
 }
 
 func (s *Shim) run(args []interface{}) {
