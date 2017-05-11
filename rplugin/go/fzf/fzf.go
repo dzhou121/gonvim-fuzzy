@@ -54,7 +54,7 @@ func RegisterPlugin(nvim *nvim.Nvim) {
 		scoreMutext: &sync.Mutex{},
 	}
 	nvim.RegisterHandler("FzfShim", func(args ...interface{}) {
-		shim.handle(args...)
+		go shim.handle(args...)
 	})
 }
 
