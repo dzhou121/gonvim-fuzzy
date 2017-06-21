@@ -19,8 +19,8 @@ const (
 	slab32Size int = 2048       // 8KB * 32 = 256KB
 )
 
-// Shim is
-type Shim struct {
+// Fuzzy is
+type Fuzzy struct {
 	nvim          *nvim.Nvim
 	options       map[string]interface{}
 	source        []string
@@ -52,7 +52,7 @@ type Output struct {
 // RegisterPlugin registers this remote plugin
 func RegisterPlugin(nvim *nvim.Nvim) {
 	nvim.Subscribe("GonvimFuzzy")
-	shim := &Shim{
+	shim := &Fuzzy{
 		nvim:        nvim,
 		slab:        util.MakeSlab(slab16Size, slab32Size),
 		scoreMutext: &sync.Mutex{},
@@ -68,7 +68,7 @@ func UpdateMax(nvim *nvim.Nvim, max int) {
 	nvim.Call("rpcnotify", nil, 0, "GonvimFuzzy", "update_max", max)
 }
 
-func (s *Shim) handle(args ...interface{}) {
+func (s *Fuzzy) handle(args ...interface{}) {
 	if len(args) < 1 {
 		return
 	}
@@ -104,7 +104,7 @@ func (s *Shim) handle(args ...interface{}) {
 	}
 }
 
-func (s *Shim) run(args []interface{}) {
+func (s *Fuzzy) run(args []interface{}) {
 	ok := s.parseOptions(args)
 	if !ok {
 		return
@@ -116,7 +116,7 @@ func (s *Shim) run(args []interface{}) {
 	s.filter()
 }
 
-func (s *Shim) reset() {
+func (s *Fuzzy) reset() {
 	s.source = []string{}
 	s.selected = 0
 	s.pattern = ""
@@ -146,7 +146,7 @@ func (a ByScore) Less(i, j int) bool {
 	return (iout.result.Score < jout.result.Score)
 }
 
-func (s *Shim) filter() {
+func (s *Fuzzy) filter() {
 	if s.cancelled {
 		return
 	}
@@ -205,7 +205,7 @@ loop:
 	s.outputResult()
 }
 
-func (s *Shim) scoreSource(source string) {
+func (s *Fuzzy) scoreSource(source string) {
 	r := algo.Result{
 		Score: -1,
 	}
@@ -242,7 +242,7 @@ func (s *Shim) scoreSource(source string) {
 	}
 }
 
-func (s *Shim) processSource() {
+func (s *Fuzzy) processSource() {
 	source, ok := s.options["source"]
 	if !ok {
 		return
@@ -314,7 +314,7 @@ func (s *Shim) processSource() {
 	}
 }
 
-func (s *Shim) parseOptions(args []interface{}) bool {
+func (s *Fuzzy) parseOptions(args []interface{}) bool {
 	if len(args) == 0 {
 		return false
 	}
@@ -326,7 +326,7 @@ func (s *Shim) parseOptions(args []interface{}) bool {
 	return true
 }
 
-func (s *Shim) newChar(args []interface{}) {
+func (s *Fuzzy) newChar(args []interface{}) {
 	if len(args) == 0 {
 		return
 	}
@@ -343,14 +343,14 @@ func (s *Shim) newChar(args []interface{}) {
 	s.filter()
 }
 
-func (s *Shim) clear() {
+func (s *Fuzzy) clear() {
 	s.pattern = ""
 	s.cursor = 0
 	s.outputPattern()
 	s.filter()
 }
 
-func (s *Shim) backspace() {
+func (s *Fuzzy) backspace() {
 	if s.cursor == 0 {
 		return
 	}
@@ -360,22 +360,22 @@ func (s *Shim) backspace() {
 	s.filter()
 }
 
-func (s *Shim) left() {
+func (s *Fuzzy) left() {
 	if s.cursor > 0 {
 		s.cursor--
 	}
 	s.outputCursor()
 }
 
-func (s *Shim) outputPattern() {
+func (s *Fuzzy) outputPattern() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_pattern", s.pattern, s.cursor)
 }
 
-func (s *Shim) outputHide() {
+func (s *Fuzzy) outputHide() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_hide")
 }
 
-func (s *Shim) outputCursor() {
+func (s *Fuzzy) outputCursor() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_pattern_pos", s.cursor)
 }
 
@@ -416,7 +416,7 @@ func matchEqual(a, b [][]int) bool {
 	return true
 }
 
-func (s *Shim) outputResult() {
+func (s *Fuzzy) outputResult() {
 	if !s.running {
 		return
 	}
@@ -459,14 +459,14 @@ func (s *Shim) outputResult() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, selected-start, match, s.options["type"], start, total)
 }
 
-func (s *Shim) right() {
+func (s *Fuzzy) right() {
 	if s.cursor < len(s.pattern) {
 		s.cursor++
 	}
 	s.outputCursor()
 }
 
-func (s *Shim) up() {
+func (s *Fuzzy) up() {
 	if s.selected > 0 {
 		s.selected--
 	} else if s.selected == 0 {
@@ -475,7 +475,7 @@ func (s *Shim) up() {
 	s.processSelected()
 }
 
-func (s *Shim) down() {
+func (s *Fuzzy) down() {
 	if s.selected < len(s.result)-1 {
 		s.selected++
 	} else if s.selected == len(s.result)-1 {
@@ -484,7 +484,7 @@ func (s *Shim) down() {
 	s.processSelected()
 }
 
-func (s *Shim) processSelected() {
+func (s *Fuzzy) processSelected() {
 	if s.selected < s.start {
 		s.start = s.selected
 		s.outputResult()
@@ -495,7 +495,7 @@ func (s *Shim) processSelected() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_select", s.selected-s.start)
 }
 
-func (s *Shim) confirm() {
+func (s *Fuzzy) confirm() {
 	if s.selected >= len(s.result) {
 		return
 	}
@@ -513,11 +513,11 @@ func (s *Shim) confirm() {
 		options := map[string]string{}
 		options["function"] = function.(string)
 		options["arg"] = arg
-		s.nvim.Call("nvim_fzf_shim#exec", nil, options)
+		s.nvim.Call("gonvim_fuzzy#exec", nil, options)
 	}
 }
 
-func (s *Shim) cancel() {
+func (s *Fuzzy) cancel() {
 	s.running = false
 	s.outputHide()
 	s.cancelled = true
