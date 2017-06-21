@@ -21,21 +21,25 @@ const (
 
 // Shim is
 type Shim struct {
-	nvim        *nvim.Nvim
-	options     map[string]interface{}
-	source      []string
-	sourceNew   chan string
-	max         int
-	selected    int
-	pattern     string
-	cursor      int
-	slab        *util.Slab
-	start       int
-	result      []*Output
-	scoreMutext *sync.Mutex
-	scoreNew    bool
-	cancelled   bool
-	cancelChan  chan bool
+	nvim          *nvim.Nvim
+	options       map[string]interface{}
+	source        []string
+	sourceNew     chan string
+	max           int
+	selected      int
+	pattern       string
+	cursor        int
+	slab          *util.Slab
+	start         int
+	result        []*Output
+	scoreMutext   *sync.Mutex
+	scoreNew      bool
+	cancelled     bool
+	cancelChan    chan bool
+	lastOutput    []string
+	lastMatch     [][]int
+	resultRWMtext sync.RWMutex
+	running       bool
 }
 
 // Output is
@@ -47,15 +51,21 @@ type Output struct {
 
 // RegisterPlugin registers this remote plugin
 func RegisterPlugin(nvim *nvim.Nvim) {
-	nvim.Subscribe("FzfShim")
+	nvim.Subscribe("GonvimFuzzy")
 	shim := &Shim{
 		nvim:        nvim,
 		slab:        util.MakeSlab(slab16Size, slab32Size),
 		scoreMutext: &sync.Mutex{},
+		max:         20,
 	}
-	nvim.RegisterHandler("FzfShim", func(args ...interface{}) {
+	nvim.RegisterHandler("GonvimFuzzy", func(args ...interface{}) {
 		go shim.handle(args...)
 	})
+}
+
+// UpdateMax updates the max
+func UpdateMax(nvim *nvim.Nvim, max int) {
+	nvim.Call("rpcnotify", nil, 0, "GonvimFuzzy", "update_max", max)
 }
 
 func (s *Shim) handle(args ...interface{}) {
@@ -87,6 +97,8 @@ func (s *Shim) handle(args ...interface{}) {
 		s.cancel()
 	case "confirm":
 		s.confirm()
+	case "update_max":
+		s.max = reflectToInt(args[1])
 	default:
 		fmt.Println("unhandleld fzfshim event", event)
 	}
@@ -97,22 +109,21 @@ func (s *Shim) run(args []interface{}) {
 	if !ok {
 		return
 	}
+	s.running = true
 	s.reset()
-	s.processMax()
 	s.processSource()
-	s.outputShow()
 	s.outputPattern()
-	s.outputCursor()
 	s.filter()
 }
 
 func (s *Shim) reset() {
 	s.source = []string{}
 	s.selected = 0
-	s.max = 0
 	s.pattern = ""
 	s.cursor = 0
 	s.start = 0
+	s.lastOutput = []string{}
+	s.lastMatch = [][]int{}
 	s.sourceNew = make(chan string, 1000)
 	s.cancelled = false
 	s.cancelChan = make(chan bool, 1)
@@ -143,7 +154,9 @@ func (s *Shim) filter() {
 	s.scoreMutext.Lock()
 	defer s.scoreMutext.Unlock()
 	s.scoreNew = false
+	s.resultRWMtext.Lock()
 	s.result = []*Output{}
+	s.resultRWMtext.Unlock()
 	sourceNew := s.sourceNew
 
 	stop := make(chan bool, 1)
@@ -301,15 +314,6 @@ func (s *Shim) processSource() {
 	}
 }
 
-func (s *Shim) processMax() {
-	max, ok := s.options["max"]
-	if !ok {
-		return
-	}
-	m, ok := max.(int64)
-	s.max = int(m)
-}
-
 func (s *Shim) parseOptions(args []interface{}) bool {
 	if len(args) == 0 {
 		return false
@@ -336,7 +340,6 @@ func (s *Shim) newChar(args []interface{}) {
 	s.pattern = insertAtIndex(s.pattern, s.cursor, c)
 	s.cursor++
 	s.outputPattern()
-	s.outputCursor()
 	s.filter()
 }
 
@@ -344,7 +347,6 @@ func (s *Shim) clear() {
 	s.pattern = ""
 	s.cursor = 0
 	s.outputPattern()
-	s.outputCursor()
 	s.filter()
 }
 
@@ -355,7 +357,6 @@ func (s *Shim) backspace() {
 	s.cursor--
 	s.pattern = removeAtIndex(s.pattern, s.cursor)
 	s.outputPattern()
-	s.outputCursor()
 	s.filter()
 }
 
@@ -367,11 +368,7 @@ func (s *Shim) left() {
 }
 
 func (s *Shim) outputPattern() {
-	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_pattern", s.pattern)
-}
-
-func (s *Shim) outputShow() {
-	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show")
+	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_pattern", s.pattern, s.cursor)
 }
 
 func (s *Shim) outputHide() {
@@ -382,18 +379,62 @@ func (s *Shim) outputCursor() {
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_pattern_pos", s.cursor)
 }
 
+func outputEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func matchIntSliceEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func matchEqual(a, b [][]int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !matchIntSliceEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Shim) outputResult() {
+	if !s.running {
+		return
+	}
 	start := s.start
 	result := s.result
 	max := s.max
 	selected := s.selected
-	if start >= len(result) {
+
+	s.resultRWMtext.RLock()
+	total := len(result)
+	if start >= total {
 		s.start = 0
+		start = 0
 		s.selected = 0
 	}
 	end := start + max
-	if end > len(result) {
-		end = len(result)
+	if end > total {
+		end = total
 	}
 	output := []string{}
 	match := [][]int{}
@@ -407,8 +448,15 @@ func (s *Shim) outputResult() {
 			match = append(match, *o.match)
 		}
 	}
+	s.resultRWMtext.RUnlock()
 
-	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, selected-start, match, s.options["type"])
+	if outputEqual(output, s.lastOutput) && matchEqual(match, s.lastMatch) {
+		return
+	}
+	s.lastOutput = output
+	s.lastMatch = match
+
+	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, selected-start, match, s.options["type"], start, total)
 }
 
 func (s *Shim) right() {
@@ -470,6 +518,7 @@ func (s *Shim) confirm() {
 }
 
 func (s *Shim) cancel() {
+	s.running = false
 	s.outputHide()
 	s.cancelled = true
 	s.cancelChan <- true
@@ -492,4 +541,12 @@ func insertAtIndex(in string, i int, newChar string) string {
 	a := []rune(in)
 	a = append(a[:i], append([]rune{rune(newChar[0])}, a[i:]...)...)
 	return string(a)
+}
+
+func reflectToInt(iface interface{}) int {
+	o, ok := iface.(int64)
+	if ok {
+		return int(o)
+	}
+	return int(iface.(uint64))
 }

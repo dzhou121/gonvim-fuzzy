@@ -1,33 +1,3 @@
-let s:stop_chars = [
-            \"\<Esc>",
-            \"\<C-c>",
-            \]
-
-let s:confirm_chars = [
-            \"\<Enter>",
-            \"\<C-m>",
-            \]
-
-let s:up_chars = [
-            \"\<C-k>",
-            \]
-
-let s:down_chars = [
-            \"\<C-j>",
-            \]
-
-let s:right_chars = [
-            \"\<rt>",
-            \]
-
-let s:left_chars = [
-            \"\<lt>",
-            \]
-
-let s:del_chars = [
-            \"\<del>",
-            \]
-
 let s:keymaps = {
             \"\<Esc>": "cancel",
             \"\<C-c>": "cancel",
@@ -45,21 +15,21 @@ let s:keymaps = {
             \"\<C-p>": "up",
             \}
 
-function! nvim_fzf_shim#run(options)
-    call rpcnotify(0, "FzfShim", "run", a:options)
+function! gonvim_fuzzy#run(options)
+    call rpcnotify(0, "GonvimFuzzy", "run", a:options)
     while v:true
         let s:input = getchar()
         let s:char = nr2char(s:input)
 
         let event = get(s:keymaps, s:char, 'noevent')
         if (s:input is# "\<BS>")
-            call rpcnotify(0, "FzfShim", "backspace")
+            call rpcnotify(0, "GonvimFuzzy", "backspace")
         elseif (s:input is# "\<DEL>")
-            call rpcnotify(0, "FzfShim", "del")
+            call rpcnotify(0, "GonvimFuzzy", "del")
         elseif (event == "noevent")
-            call rpcnotify(0, "FzfShim", "char", s:char)
+            call rpcnotify(0, "GonvimFuzzy", "char", s:char)
         else
-            call rpcnotify(0, "FzfShim", event)
+            call rpcnotify(0, "GonvimFuzzy", event)
         endif
 
         if (event == "cancel") || (event == "confirm")
@@ -68,7 +38,7 @@ function! nvim_fzf_shim#run(options)
     endwhile
 endfunction
 
-function! nvim_fzf_shim#exec(options)
+function! gonvim_fuzzy#exec(options)
     let s:arg = a:options.arg
     if has_key(a:options, 'function')
         let s:f = function(a:options.function)
@@ -86,10 +56,10 @@ function! s:buffer_lines()
     \ 'printf("%d\t%s", v:key + 1, v:val)')
 endfunction
 
-function! nvim_fzf_shim#buffer_lines(...)
+function! gonvim_fuzzy#buffer_lines(...)
   let [query, args] = (a:0 && type(a:1) == type('')) ?
         \ [a:1, a:000[1:]] : ['', a:000]
-  return nvim_fzf_shim#run({
+  return gonvim_fuzzy#run({
               \ 'source': s:buffer_lines(),
               \ 'function': '<sid>buffer_line_handler',
               \ "pwd": getcwd(),
@@ -120,9 +90,9 @@ function! s:ag_handler(line)
 endfunction
 
 " query, [[ag options], options]
-function! nvim_fzf_shim#ag(query)
+function! gonvim_fuzzy#ag(query)
   let s:cmd = printf('%s "%s"', "ag --nogroup --column --nocolor", a:query)
-  return nvim_fzf_shim#run({
+  return gonvim_fuzzy#run({
               \ 'source': s:cmd,
               \ 'function': '<sid>ag_handler',
               \ "pwd": getcwd(),
