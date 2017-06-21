@@ -2,8 +2,11 @@ package fzf
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -40,6 +43,7 @@ type Fuzzy struct {
 	lastMatch     [][]int
 	resultRWMtext sync.RWMutex
 	running       bool
+	pwd           string
 }
 
 // Output is
@@ -122,6 +126,7 @@ func (s *Fuzzy) reset() {
 	s.pattern = ""
 	s.cursor = 0
 	s.start = 0
+	s.pwd = ""
 	s.lastOutput = []string{}
 	s.lastMatch = [][]int{}
 	s.sourceNew = make(chan string, 1000)
@@ -243,16 +248,76 @@ func (s *Fuzzy) scoreSource(source string) {
 }
 
 func (s *Fuzzy) processSource() {
-	source, ok := s.options["source"]
-	if !ok {
-		return
-	}
+	source := s.options["source"]
 	pwd, ok := s.options["pwd"]
-	if !ok {
-		return
+	if ok {
+		s.pwd, ok = pwd.(string)
+		if !ok {
+			s.pwd = ""
+		}
+		path, err := expand(s.pwd)
+		if err == nil {
+			s.pwd = path
+		}
+	}
+	if s.pwd != "" {
+		os.Chdir(s.pwd)
 	}
 	sourceNew := s.sourceNew
 	cancelChan := s.cancelChan
+	if source == nil {
+		dir := ""
+		dirInterface, ok := s.options["dir"]
+		if ok {
+			dir, ok = dirInterface.(string)
+			if !ok {
+				dir = ""
+			}
+			path, err := expand(dir)
+			if err == nil {
+				dir = path
+			}
+		}
+		go func() {
+			defer close(sourceNew)
+			pwd := "./"
+			if dir != "" {
+				pwd = dir
+			}
+			files, _ := ioutil.ReadDir(pwd)
+			folders := []string{}
+			for {
+				for _, f := range files {
+					if s.cancelled {
+						return
+					}
+					if f.IsDir() {
+						folders = append(folders, filepath.Join(pwd, f.Name()))
+						continue
+					}
+					select {
+					case sourceNew <- filepath.Join(pwd, f.Name()):
+					case <-cancelChan:
+						return
+					}
+				}
+				for {
+					if len(folders) == 0 {
+						return
+					}
+					pwd = folders[0]
+					folders = folders[1:]
+					files, _ = ioutil.ReadDir(pwd)
+					if len(files) == 0 {
+						continue
+					} else {
+						break
+					}
+				}
+			}
+		}()
+		return
+	}
 	switch src := source.(type) {
 	case []interface{}:
 		go func() {
@@ -276,7 +341,6 @@ func (s *Fuzzy) processSource() {
 			close(sourceNew)
 		}()
 	case string:
-		os.Chdir(pwd.(string))
 		cmd := exec.Command("bash", "-c", src)
 		stdout, _ := cmd.StdoutPipe()
 		output := ""
@@ -549,4 +613,16 @@ func reflectToInt(iface interface{}) int {
 		return int(o)
 	}
 	return int(iface.(uint64))
+}
+
+func expand(path string) (string, error) {
+	if len(path) == 0 || path[0] != '~' {
+		return path, nil
+	}
+
+	usr, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(usr.HomeDir, path[1:]), nil
 }
