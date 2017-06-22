@@ -278,6 +278,11 @@ func (s *Fuzzy) processSource() {
 				dir = path
 			}
 		}
+		homeDir := ""
+		usr, err := user.Current()
+		if err == nil {
+			homeDir = usr.HomeDir
+		}
 		go func() {
 			defer close(sourceNew)
 			pwd := "./"
@@ -295,8 +300,12 @@ func (s *Fuzzy) processSource() {
 						folders = append(folders, filepath.Join(pwd, f.Name()))
 						continue
 					}
+					file := filepath.Join(pwd, f.Name())
+					if homeDir != "" && strings.HasPrefix(file, homeDir) {
+						file = "~" + file[len(homeDir):]
+					}
 					select {
-					case sourceNew <- filepath.Join(pwd, f.Name()):
+					case sourceNew <- file:
 					case <-cancelChan:
 						return
 					}
