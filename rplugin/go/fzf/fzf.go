@@ -512,7 +512,11 @@ func (s *Fuzzy) outputResult() {
 	output := []string{}
 	match := [][]int{}
 	for _, o := range result[start:end] {
-		output = append(output, o.output)
+		text := o.output
+		if len(text) > 200 {
+			text = string(text[:200])
+		}
+		output = append(output, text)
 	}
 	for _, o := range result[start:end] {
 		if o.match == nil {
@@ -529,6 +533,7 @@ func (s *Fuzzy) outputResult() {
 	s.lastOutput = output
 	s.lastMatch = match
 
+	fmt.Println(output)
 	s.nvim.Call("rpcnotify", nil, 0, "Gui", "finder_show_result", output, selected-start, match, s.options["type"], start, total)
 }
 
