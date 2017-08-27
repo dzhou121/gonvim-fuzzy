@@ -13,7 +13,11 @@ let s:keymaps = {
             \"\<Tab>": "down",
             \"\<C-k>": "up",
             \"\<C-p>": "up",
+            \"\<C-s>": "split",
+            \"\<C-v>": "vsplit",
             \}
+
+let s:open_command = 'e'
 
 function! gonvim_fuzzy#run(options)
     call rpcnotify(0, "GonvimFuzzy", "run", a:options)
@@ -28,11 +32,17 @@ function! gonvim_fuzzy#run(options)
             call rpcnotify(0, "GonvimFuzzy", "del")
         elseif (event == "noevent")
             call rpcnotify(0, "GonvimFuzzy", "char", s:char)
+        elseif (event == "split") || (event == "vsplit")
+            let s:open_command = event
+            call rpcnotify(0, "GonvimFuzzy", "confirm")
+        elseif (event == "confirm")
+            let s:open_command = 'e'
+            call rpcnotify(0, "GonvimFuzzy", event)
         else
             call rpcnotify(0, "GonvimFuzzy", event)
         endif
 
-        if (event == "cancel") || (event == "confirm")
+        if (event == "cancel") || (event == "confirm") || (event == "split") || (event == "vsplit")
             return
         endif
     endwhile
@@ -57,7 +67,7 @@ endfunction
 " Files
 " ------------------------------------------------------------------
 function! s:edit_file(item)
-  execute 'e' a:item
+  execute s:open_command a:item
 endfunction
 
 function! gonvim_fuzzy#files(dir, ...)
