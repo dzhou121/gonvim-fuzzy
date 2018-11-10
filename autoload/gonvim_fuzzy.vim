@@ -218,3 +218,19 @@ function! gonvim_fuzzy#buffers(...)
               \ "type": "buffer", 
               \})
 endfunction
+
+" ------------------------------------------------------------------
+" Custom command
+"
+" Uses the given command to list candidate files and fuzzily search
+" among them.
+" ------------------------------------------------------------------
+function! gonvim_fuzzy#cmd(cmd)
+  return gonvim_fuzzy#run({
+              \ 'source': a:cmd,
+              \ 'function': 's:edit_file',
+              \ "pwd": getcwd(),
+              \ "max": 20,
+              \ "type": "file",
+              \})
+endfunction
